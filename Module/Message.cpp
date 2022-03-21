@@ -58,7 +58,7 @@ namespace kls::phttp {
         auto verb = detail::unpack_phttp_string(reader, memory);
         auto version = detail::unpack_phttp_string(reader, memory);
         auto resource = detail::unpack_phttp_string(reader, memory);
-        return {std::move(verb), std::move(version), std::move(resource), memory};
+        return {std::move(verb), std::move(version), std::move(resource)};
     }
 
     Block ResponseLine::pack(std::pmr::memory_resource *memory) {
@@ -73,7 +73,7 @@ namespace kls::phttp {
         essential::SpanReader<std::endian::little> reader{content};
         auto status = reader.get<int32_t>();
         auto message = detail::unpack_phttp_string(reader, memory);
-        return {status, std::move(message), memory};
+        return {status, std::move(message)};
     }
 
     void Headers::set(std::string_view key, std::string_view value) {

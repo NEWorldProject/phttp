@@ -48,10 +48,8 @@ namespace kls::phttp {
         [[nodiscard]] Block pack(std::pmr::memory_resource *memory);
         [[nodiscard]] static RequestLine unpack(essential::Span<> content, std::pmr::memory_resource *memory);
     private:
-        RequestLine(
-                alias::string&& verb, alias::string&& version, alias::string&& resource,
-                std::pmr::memory_resource *mem
-        ) : m_verb{std::move(verb)}, m_version{std::move(version)}, m_resource{std::move(resource)} {}
+        RequestLine(alias::string &&verb, alias::string &&version, alias::string &&resource)
+                : m_verb{std::move(verb)}, m_version{std::move(version)}, m_resource{std::move(resource)} {}
 
         alias::string m_verb{}, m_version{}, m_resource{};
     };
@@ -70,10 +68,7 @@ namespace kls::phttp {
         [[nodiscard]] Block pack(std::pmr::memory_resource *memory);
         [[nodiscard]] static ResponseLine unpack(essential::Span<> content, std::pmr::memory_resource *memory);
     private:
-        ResponseLine(
-                int32_t code, alias::string&& message,
-                std::pmr::memory_resource *memory
-        ) : m_code{code}, m_message{std::move(message)} {}
+        ResponseLine(int32_t code, alias::string &&message) : m_code{code}, m_message{std::move(message)} {}
 
         int32_t m_code{};
         alias::string m_message{};

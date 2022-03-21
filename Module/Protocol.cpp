@@ -22,11 +22,19 @@
 
 #include "kls/phttp/Error.h"
 #include "kls/phttp/Protocol.h"
+#include "kls/coroutine/Future.h"
 #include "kls/coroutine/Operation.h"
 
 using namespace kls::io;
 using namespace kls::essential;
 using namespace kls::coroutine;
+
+namespace {
+    struct Message {
+        int stage{0};
+        kls::phttp::Block blocks[3];
+    };
+}
 
 namespace kls::phttp {
     ClientEndpoint::ClientEndpoint(std::unique_ptr<Endpoint> endpoint) : m_down{false}, m_receive{},
@@ -44,7 +52,8 @@ namespace kls::phttp {
                         std::lock_guard lk{m_sync};
                         auto promise_it = m_promises.find(id);
                         if (m_promises.end() != promise_it) throw InconsistentState{};
-                        promise_it->second->set(std::move(stage_it->second));
+                        auto promise = static_cast<ValueFuture<Message>::PromiseHandle>(promise_it->second);
+                        promise->set(std::move(stage_it->second));
                         m_promises.erase(promise_it);
                     }
                     staging.erase(stage_it);
@@ -53,42 +62,60 @@ namespace kls::phttp {
         }();
     }
 
+    static Message pack(Request r, std::pmr::memory_resource *memory) {
+        return Message{.blocks = {r.line.pack(memory), r.headers.pack(memory), std::move(r.body)}};
+    }
+
+    static Message pack(Response r, std::pmr::memory_resource *memory) {
+        return Message{.blocks = {r.line.pack(memory), r.headers.pack(memory), std::move(r.body)}};
+    }
+
+    static Request unpack_request(Message m, std::pmr::memory_resource *memory) {
+        return Request{
+                .line = RequestLine::unpack(m.blocks[0].content(), memory),
+                .headers = Headers::unpack(m.blocks[1].content(), memory),
+                .body = std::move(m.blocks[2])
+        };
+    }
+
+    static Response unpack_response(Message m, std::pmr::memory_resource *memory) {
+        return Response{
+                .line = ResponseLine::unpack(m.blocks[0].content(), memory),
+                .headers = Headers::unpack(m.blocks[1].content(), memory),
+                .body = std::move(m.blocks[2])
+        };
+    }
+
+    static void set_message_id(Message &message, int32_t id) noexcept {
+        message.blocks[0].set_id(id), message.blocks[1].set_id(id), message.blocks[2].set_id(id);
+    }
+
+    ValueAsync<> locked_send_message(Endpoint &endpoint, Message message, Mutex &mutex) {
+        MutexLock lk = co_await mutex.scoped_lock_async();
+        co_await endpoint.put(std::move(message.blocks[0]));
+        co_await endpoint.put(std::move(message.blocks[1]));
+        co_await endpoint.put(std::move(message.blocks[2]));
+    }
+
     ValueAsync<Response> ClientEndpoint::exec(Request &&request) {
-        auto memory_resource = std::pmr::get_default_resource();
-        auto line_block = request.line.pack(memory_resource);
-        auto header_block = request.headers.pack(memory_resource);
-        auto body_block = std::move(request.body);
-        auto&&[assigned_id, receive_future] = [this]() {
+        int32_t id{};
+        auto memory = std::pmr::get_default_resource();
+        auto request_message = pack(std::move(request), memory);
+        auto receive = [this, &id]() {
             std::lock_guard lk{m_sync};
             for (;;) {
-                auto id = m_top_id++;
-                if (m_promises.find(id) == m_promises.end()) continue;
-                return std::pair<int32_t, ValueFuture<Message>>{
-                        std::piecewise_construct, std::forward_as_tuple(id),
-                        std::forward_as_tuple([this, id](auto promise) { m_promises.insert({id, promise}); })
-                };
+                if (m_promises.find(id = m_top_id++) == m_promises.end()) continue;
+                return ValueFuture<Message>([this, id](auto promise) { m_promises.insert({id, promise}); });
             }
         }();
-        line_block.set_id(assigned_id);
-        header_block.set_id(assigned_id);
-        body_block.set_id(assigned_id);
-        try {
-            MutexLock lk = co_await m_mutex.scoped_lock_async();
-            co_await m_endpoint->put(std::move(line_block));
-            co_await m_endpoint->put(std::move(header_block));
-            co_await m_endpoint->put(std::move(body_block));
-        }
+        set_message_id(request_message, id);
+        try { co_await locked_send_message(*m_endpoint, std::move(request_message), m_mutex); }
         catch (...) {
             std::lock_guard lk{m_sync};
-            m_promises.erase(assigned_id);
+            m_promises.erase(id);
             throw;
         }
-        Message response_message = co_await receive_future;
-        co_return Response{
-                .line = ResponseLine::unpack(response_message.blocks[0].content(), memory_resource),
-                .headers = Headers::unpack(response_message.blocks[1].content(), memory_resource),
-                .body = std::move(response_message.blocks[2])
-        };
+        co_return unpack_response(co_await receive, memory);
     }
 
     ValueAsync<> ClientEndpoint::close() {
@@ -96,26 +123,17 @@ namespace kls::phttp {
         return awaits(m_endpoint->close(), m_receive);
     }
 
-    coroutine::ValueAsync<void> ServerEndpoint::run() {
+    ValueAsync<void> ServerEndpoint::run() {
         thread::SpinLock lock{};
         std::unordered_map<int32_t, Message> staging{};
         std::unordered_map<int32_t, ValueAsync<>> processing{};
         auto processor = [&, this](int32_t id, Message msg) -> ValueAsync<void> {
             co_await Redispatch{};
-            auto memory_resource = std::pmr::get_default_resource();
+            auto memory = std::pmr::get_default_resource();
             try {
-                Response response = co_await m_trivial(Request{
-                        .line = RequestLine::unpack(msg.blocks[0].content(), memory_resource),
-                        .headers = Headers::unpack(msg.blocks[1].content(), memory_resource),
-                        .body = std::move(msg.blocks[2])
-                }, m_data);
-                auto line_block = response.line.pack(memory_resource);
-                auto header_block = response.headers.pack(memory_resource);
-                auto body_block = std::move(response.body);
-                MutexLock lk = co_await m_mutex.scoped_lock_async();
-                co_await m_endpoint->put(std::move(line_block));
-                co_await m_endpoint->put(std::move(header_block));
-                co_await m_endpoint->put(std::move(body_block));
+                auto response = pack(co_await m_trivial(unpack_request(std::move(msg), memory), m_data), memory);
+                set_message_id(response, id);
+                co_await locked_send_message(*m_endpoint, std::move(response), m_mutex);
             }
             catch (std::exception &e) { puts(e.what()); }
             catch (...) {}
@@ -144,7 +162,7 @@ namespace kls::phttp {
         }
     }
 
-    coroutine::ValueAsync<> ServerEndpoint::close() {
+    ValueAsync<> ServerEndpoint::close() {
         m_down = true;
         co_await m_endpoint->close();
     }

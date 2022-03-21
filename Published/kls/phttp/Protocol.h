@@ -25,7 +25,6 @@
 #include "Message.h"
 #include "kls/coroutine/Async.h"
 #include "kls/coroutine/Mutex.h"
-#include "kls/coroutine/Future.h"
 #include <unordered_map>
 
 namespace kls::phttp {
@@ -35,10 +34,6 @@ namespace kls::phttp {
         coroutine::ValueAsync<Response> exec(Request &&request);
         coroutine::ValueAsync<> close();
     private:
-        struct Message {
-            int stage{0};
-            Block blocks[3];
-        };
         std::atomic_bool m_down;
         coroutine::Mutex m_mutex{};
         coroutine::ValueAsync<> m_receive;
@@ -46,7 +41,7 @@ namespace kls::phttp {
         // response sync back
         int32_t m_top_id{0};
         thread::SpinLock m_sync{};
-        std::unordered_map<int32_t, coroutine::ValueFuture<Message>::PromiseType *> m_promises{};
+        std::unordered_map<int32_t, void*> m_promises{};
     };
 
     class ServerEndpoint {
@@ -64,10 +59,6 @@ namespace kls::phttp {
         }
         coroutine::ValueAsync<> close();
     private:
-        struct Message {
-            int stage{0};
-            Block blocks[3];
-        };
         void *m_data{};
         Trivial m_trivial{};
         std::atomic_bool m_down{false};
