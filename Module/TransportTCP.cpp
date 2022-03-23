@@ -49,7 +49,7 @@ namespace {
             const auto msgId = headReader.get<int32_t>();
             const auto msgLen = headReader.get<int32_t>();
             auto block = Block(msgLen, msgId, std::pmr::get_default_resource());
-            (co_await read_fully(*m_socket, block.bytes())).get_result();
+            (co_await read_fully(*m_socket, block.content())).get_result();
             co_return block;
         }
 
@@ -75,8 +75,8 @@ namespace {
 }
 
 namespace kls::phttp {
-    [[nodiscard]] coroutine::ValueAsync<std::unique_ptr<Host>> listen_tcp(io::Peer local, int backlog) {
-        co_return std::make_unique<ServerImpl>(acceptor_tcp(local.first, local.second, backlog));
+    [[nodiscard]] std::unique_ptr<Host> listen_tcp(io::Peer local, int backlog) {
+        return std::make_unique<ServerImpl>(acceptor_tcp(local.first, local.second, backlog));
     }
 
     [[nodiscard]] coroutine::ValueAsync<std::unique_ptr<Endpoint>> connect_tcp(io::Peer peer) {

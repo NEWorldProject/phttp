@@ -24,47 +24,35 @@
 
 #include "Message.h"
 #include "kls/coroutine/Async.h"
-#include "kls/coroutine/Mutex.h"
-#include <unordered_map>
 
 namespace kls::phttp {
-    class ClientEndpoint {
-    public:
-        explicit ClientEndpoint(std::unique_ptr<Endpoint> endpoint);
-        coroutine::ValueAsync<Response> exec(Request &&request);
-        coroutine::ValueAsync<> close();
-    private:
-        std::atomic_bool m_down;
-        coroutine::Mutex m_mutex{};
-        coroutine::ValueAsync<> m_receive;
-        std::unique_ptr<Endpoint> m_endpoint;
-        // response sync back
-        int32_t m_top_id{0};
-        thread::SpinLock m_sync{};
-        std::unordered_map<int32_t, void*> m_promises{};
+    struct ChannelClosed: std::exception {
+        [[nodiscard]] const char *what() const noexcept override;
     };
 
-    class ServerEndpoint {
-        using Trivial = coroutine::ValueAsync<Response>(*)(Request &&, void *);
+    struct ClientEndpoint: public PmrBase {
+        virtual coroutine::ValueAsync<Response> exec(Request request) = 0;
+        virtual coroutine::ValueAsync<> close() = 0;
+        static std::unique_ptr<ClientEndpoint> create(std::unique_ptr<Endpoint> ep);
+    };
+
+    class ServerEndpoint: public PmrBase {
     public:
-        explicit ServerEndpoint(std::unique_ptr<Endpoint> endpoint) : m_endpoint(std::move(endpoint)) {}
         template<class Fn>
         requires requires(Fn fn, Request request) {
-            { fn(request) } -> std::same_as<coroutine::ValueAsync<Response>>;
+            { fn(std::move(request)) } -> std::same_as<coroutine::ValueAsync<Response>>;
         }
         coroutine::ValueAsync<void> run(Fn handler) {
             m_data = &handler;
-            m_trivial = [](Request &&request, void *data) { return static_cast<Fn *>(data)(std::move(request)); };
+            m_trivial = [](Request &&request, void *data) { return (*static_cast<Fn *>(data))(std::move(request)); };
             co_await run();
         }
-        coroutine::ValueAsync<> close();
-    private:
+        virtual coroutine::ValueAsync<> close() = 0;
+        static std::unique_ptr<ServerEndpoint> create(std::unique_ptr<Endpoint> ep);
+    protected:
+        using Trivial = coroutine::ValueAsync<Response>(*)(Request &&, void *);
         void *m_data{};
         Trivial m_trivial{};
-        std::atomic_bool m_down{false};
-        coroutine::Mutex m_mutex{};
-        std::unique_ptr<Endpoint> m_endpoint;
-
-        coroutine::ValueAsync<void> run();
+        virtual coroutine::ValueAsync<void> run() = 0;
     };
 }

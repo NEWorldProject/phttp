@@ -67,6 +67,6 @@ namespace kls::phttp {
         [[nodiscard]] virtual coroutine::ValueAsync<> close() = 0;
     };
 
+    [[nodiscard]] std::unique_ptr<Host> listen_tcp(io::Peer local, int backlog);
     [[nodiscard]] coroutine::ValueAsync <std::unique_ptr<Endpoint>> connect_tcp(io::Peer peer);
-    [[nodiscard]] coroutine::ValueAsync <std::unique_ptr<Host>> listen_tcp(io::Peer local, int backlog);
 }
