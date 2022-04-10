@@ -40,7 +40,7 @@ namespace kls::phttp {
         }
     }
 
-    Block RequestLine::pack(int32_t id, std::pmr::memory_resource *memory) const {
+    Block RequestLine::pack(int32_t id, pmr::MemoryResource *memory) const {
         auto block = Block(int32_t(m_verb.size() + m_version.size() + m_resource.size() + 12), id, memory);
         auto writer = essential::SpanWriter<Endian>(block.content());
         detail::pack_phttp_string(writer, m_verb);
@@ -49,7 +49,7 @@ namespace kls::phttp {
         return block;
     }
 
-    RequestLine RequestLine::unpack(const Block& block, std::pmr::memory_resource *memory) {
+    RequestLine RequestLine::unpack(const Block& block, pmr::MemoryResource *memory) {
         essential::SpanReader<Endian> reader{block.content()};
         auto verb = alias::string(detail::unpack_phttp_string(reader), {memory});
         auto version = alias::string(detail::unpack_phttp_string(reader), {memory});
@@ -57,7 +57,7 @@ namespace kls::phttp {
         return {std::move(verb), std::move(version), std::move(resource)};
     }
 
-    Block ResponseLine::pack(int32_t id, std::pmr::memory_resource *memory) const {
+    Block ResponseLine::pack(int32_t id, pmr::MemoryResource *memory) const {
         auto block = Block(int32_t(8 + m_message.size()), id, memory);
         auto writer = essential::SpanWriter<Endian>(block.content());
         writer.put(m_code);
@@ -65,7 +65,7 @@ namespace kls::phttp {
         return block;
     }
 
-    ResponseLine ResponseLine::unpack(const Block& block, std::pmr::memory_resource *memory) {
+    ResponseLine ResponseLine::unpack(const Block& block, pmr::MemoryResource *memory) {
         essential::SpanReader<Endian> reader{block.content()};
         auto status = reader.get<int32_t>();
         auto message = alias::string{detail::unpack_phttp_string(reader), {memory}};
@@ -77,7 +77,7 @@ namespace kls::phttp {
         m_table.insert_or_assign(alias::string{key, {memory}}, alias::string{value, {memory}});
     }
 
-    Block Headers::pack(int32_t id, std::pmr::memory_resource *memory) const {
+    Block Headers::pack(int32_t id, pmr::MemoryResource *memory) const {
         auto block = Block(std::accumulate(
                 m_table.begin(), m_table.end(), int32_t(4),
                 [](auto a, auto b) noexcept { return a + b.first.size() + b.second.size() + 8; }
@@ -91,7 +91,7 @@ namespace kls::phttp {
         return block;
     }
 
-    Headers Headers::unpack(const Block& block, std::pmr::memory_resource *memory) {
+    Headers Headers::unpack(const Block& block, pmr::MemoryResource *memory) {
         Headers result{memory};
         essential::SpanReader<Endian> reader{block.content()};
         const auto count = reader.get<int32_t>();

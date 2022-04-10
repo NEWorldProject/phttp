@@ -48,7 +48,7 @@ namespace {
             SpanReader<std::endian::little> headReader{{buffer, 8}};
             const auto msgId = headReader.get<int32_t>();
             const auto msgLen = headReader.get<int32_t>();
-            auto block = Block(msgLen, msgId, std::pmr::get_default_resource());
+            auto block = Block(msgLen, msgId, kls::pmr::default_resource());
             (co_await read_fully(*m_socket, block.content())).get_result();
             co_return block;
         }

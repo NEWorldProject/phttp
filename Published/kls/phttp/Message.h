@@ -24,13 +24,13 @@
 
 #include <string_view>
 #include <memory_resource>
-#include "kls/essential/STL.h"
+#include "kls/STL.h"
 #include "kls/essential/Unsafe.h"
 #include "Transport.h"
 
 namespace kls::phttp {
     namespace detail {
-        using alias = kls::essential::AllocAliased<std::pmr::polymorphic_allocator>;
+        using alias = kls::AllocAliased<pmr::PolymorphicAllocator>;
     }
 
     class RequestLine {
@@ -39,7 +39,7 @@ namespace kls::phttp {
         RequestLine() = default;
         RequestLine(
                 std::string_view verb, std::string_view resource,
-                std::pmr::memory_resource *mem = std::pmr::get_default_resource()
+                pmr::MemoryResource *mem = pmr::default_resource()
         ) : m_verb{verb, {mem}}, m_version{"PHTTP/1.0", {mem}}, m_resource{resource, {mem}} {}
         RequestLine(RequestLine&&) noexcept = default;
         RequestLine& operator=(RequestLine&&) noexcept = default;
@@ -50,8 +50,8 @@ namespace kls::phttp {
         [[nodiscard]] std::string_view verb() const noexcept { return {m_verb}; }
         [[nodiscard]] std::string_view version() const noexcept { return {m_version}; }
         [[nodiscard]] std::string_view resource() const noexcept { return {m_resource}; }
-        [[nodiscard]] Block pack(int32_t id, std::pmr::memory_resource *memory) const;
-        [[nodiscard]] static RequestLine unpack(const Block& block, std::pmr::memory_resource *memory);
+        [[nodiscard]] Block pack(int32_t id, pmr::MemoryResource *memory) const;
+        [[nodiscard]] static RequestLine unpack(const Block& block, pmr::MemoryResource *memory);
     private:
         RequestLine(alias::string &&verb, alias::string &&version, alias::string &&resource)
                 : m_verb{std::move(verb)}, m_version{std::move(version)}, m_resource{std::move(resource)} {}
@@ -65,7 +65,7 @@ namespace kls::phttp {
         ResponseLine() = default;
         ResponseLine(
                 int32_t code, std::string_view message,
-                std::pmr::memory_resource *memory = std::pmr::get_default_resource()
+                pmr::MemoryResource *memory = pmr::default_resource()
         ) : m_code{code}, m_message{message, {memory}} {}
         ResponseLine(ResponseLine&&) noexcept = default;
         ResponseLine& operator=(ResponseLine&&) noexcept = default;
@@ -75,8 +75,8 @@ namespace kls::phttp {
 
         [[nodiscard]] int32_t code() const noexcept { return m_code; }
         [[nodiscard]] std::string_view message() const noexcept { return {m_message}; }
-        [[nodiscard]] Block pack(int32_t id, std::pmr::memory_resource *memory) const;
-        [[nodiscard]] static ResponseLine unpack(const Block& block, std::pmr::memory_resource *memory);
+        [[nodiscard]] Block pack(int32_t id, pmr::MemoryResource *memory) const;
+        [[nodiscard]] static ResponseLine unpack(const Block& block, pmr::MemoryResource *memory);
     private:
         int32_t m_code{};
         alias::string m_message{};
@@ -94,7 +94,7 @@ namespace kls::phttp {
         using alias = detail::alias;
     public:
         explicit Headers(
-                std::pmr::memory_resource *memory = std::pmr::get_default_resource()
+                pmr::MemoryResource *memory = pmr::default_resource()
         ) noexcept: m_table{{memory}}{}
         Headers(Headers&&) noexcept = default;
         Headers& operator=(Headers&&) noexcept = default;
@@ -109,8 +109,8 @@ namespace kls::phttp {
         }
 
         void set(std::string_view key, std::string_view value);
-        [[nodiscard]] Block pack(int32_t id, std::pmr::memory_resource *memory) const;
-        [[nodiscard]] static Headers unpack(const Block& block, std::pmr::memory_resource *memory);
+        [[nodiscard]] Block pack(int32_t id, pmr::MemoryResource *memory) const;
+        [[nodiscard]] static Headers unpack(const Block& block, pmr::MemoryResource *memory);
     private:
         alias::unordered_map <alias::string, alias::string, string_hash, std::equal_to<>> m_table;
     };

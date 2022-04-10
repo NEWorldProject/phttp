@@ -23,6 +23,7 @@
 #pragma once
 
 #include "kls/io/IP.h"
+#include "kls/pmr/Automatic.h"
 #include "kls/coroutine/Async.h"
 #include "kls/essential/Memory.h"
 #include "kls/essential/Unsafe.h"
@@ -30,15 +31,15 @@
 namespace kls::phttp {
     class Block {
         [[nodiscard]] auto header() const noexcept {
-            return essential::Access < std::endian::little > {{m_v.get(), 8}};
+            return essential::Access<std::endian::little>{{m_v.get(), 8}};
         }
     public:
         Block() noexcept: m_v(nullptr) {}
-        Block(int32_t content_length, std::pmr::memory_resource *resource) :
+        Block(int32_t content_length, pmr::MemoryResource *resource) :
                 m_v(kls::pmr::make_unique<char[]>(resource, content_length + 8)) {
             header().put<int32_t>(4, content_length);
         }
-        Block(int32_t content_length, int32_t message_id, std::pmr::memory_resource *resource) :
+        Block(int32_t content_length, int32_t message_id, pmr::MemoryResource *resource) :
                 m_v(kls::pmr::make_unique<char[]>(resource, content_length + 8)) {
             auto h = header();
             h.put<int32_t>(0, message_id);
@@ -49,8 +50,8 @@ namespace kls::phttp {
         void set_id(int32_t value) noexcept { header().put<int32_t>(0, value); }
         [[nodiscard]] int32_t id() const noexcept { return header().get<int32_t>(0); }
         [[nodiscard]] int32_t size() const noexcept { return header().get<int32_t>(4); }
-        [[nodiscard]] essential::Span<> bytes() const noexcept { return {m_v.get(), size() + 8}; }
-        [[nodiscard]] essential::Span<> content() const noexcept { return {m_v.get() + 8, size()}; }
+        [[nodiscard]] Span<> bytes() const noexcept { return {m_v.get(), size() + 8}; }
+        [[nodiscard]] Span<> content() const noexcept { return {m_v.get() + 8, size()}; }
     private:
         pmr::unique_ptr<char[]> m_v;
     };

@@ -27,8 +27,8 @@
 TEST(kls_phttp, EncodeRequestLine) {
     using namespace kls::phttp;
     auto raw = RequestLine("POST", "TEST_RESOURCE/A");
-    auto packed = raw.pack(0, std::pmr::get_default_resource());
-    auto trip = RequestLine::unpack(packed, std::pmr::get_default_resource());
+    auto packed = raw.pack(0, kls::pmr::default_resource());
+    auto trip = RequestLine::unpack(packed, kls::pmr::default_resource());
     auto result = (trip.verb() == raw.verb()) && (trip.resource() == raw.resource());
     ASSERT_TRUE(result);
 }
@@ -36,8 +36,8 @@ TEST(kls_phttp, EncodeRequestLine) {
 TEST(kls_phttp, EncodeResponseLine) {
     using namespace kls::phttp;
     auto raw = ResponseLine(20000, "SUCCESS");
-    auto packed = raw.pack(0, std::pmr::get_default_resource());
-    auto trip = ResponseLine::unpack(packed, std::pmr::get_default_resource());
+    auto packed = raw.pack(0, kls::pmr::default_resource());
+    auto trip = ResponseLine::unpack(packed, kls::pmr::default_resource());
     auto result = (trip.code() == raw.code()) && (trip.message() == raw.message());
     ASSERT_TRUE(result);
 }
@@ -47,8 +47,8 @@ TEST(kls_phttp, EncodeHeaders) {
     auto raw = Headers();
     raw.set("Test", "Headers");
     raw.set("Foo", "Bar");
-    auto packed = raw.pack(0, std::pmr::get_default_resource());
-    auto trip = Headers::unpack(packed, std::pmr::get_default_resource());
+    auto packed = raw.pack(0, kls::pmr::default_resource());
+    auto trip = Headers::unpack(packed, kls::pmr::default_resource());
     auto result = (trip.get("Test") == raw.get("Test")) && (trip.get("Foo") == raw.get("Foo"));
     ASSERT_TRUE(result);
 }

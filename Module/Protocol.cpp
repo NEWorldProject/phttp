@@ -39,17 +39,17 @@ namespace {
         kls::phttp::Block blocks[3];
     };
 
-    Message pack(Request r, int32_t id, std::pmr::memory_resource *memory) {
+    Message pack(Request r, int32_t id, kls::pmr::MemoryResource *memory) {
         r.body.set_id(id);
         return Message{.blocks = {r.line.pack(id, memory), r.headers.pack(id, memory), std::move(r.body)}};
     }
 
-    Message pack(Response r, int32_t id, std::pmr::memory_resource *memory) {
+    Message pack(Response r, int32_t id, kls::pmr::MemoryResource *memory) {
         r.body.set_id(id);
         return Message{.blocks = {r.line.pack(id, memory), r.headers.pack(id, memory), std::move(r.body)}};
     }
 
-    Request unpack_request(Message m, std::pmr::memory_resource *memory) {
+    Request unpack_request(Message m, kls::pmr::MemoryResource *memory) {
         return Request{
                 .line = RequestLine::unpack(m.blocks[0], memory),
                 .headers = Headers::unpack(m.blocks[1], memory),
@@ -57,7 +57,7 @@ namespace {
         };
     }
 
-    Response unpack_response(Message m, std::pmr::memory_resource *memory) {
+    Response unpack_response(Message m, kls::pmr::MemoryResource *memory) {
         return Response{
                 .line = ResponseLine::unpack(m.blocks[0], memory),
                 .headers = Headers::unpack(m.blocks[1], memory),
@@ -74,13 +74,13 @@ namespace {
 
     ValueAsync<> post_shutdown_user(Endpoint &endpoint, Mutex &mutex) {
         MutexLock lk = co_await mutex.scoped_lock_async();
-        auto message = Block(0, -1, std::pmr::get_default_resource());
+        auto message = Block(0, -1, kls::pmr::default_resource());
         co_await endpoint.put(std::move(message));
     }
 
     ValueAsync<> post_shutdown_user_ack(Endpoint &endpoint, Mutex &mutex) {
         MutexLock lk = co_await mutex.scoped_lock_async();
-        auto message = Block(0, -2, std::pmr::get_default_resource());
+        auto message = Block(0, -2, kls::pmr::default_resource());
         co_await endpoint.put(std::move(message));
     }
 
@@ -98,7 +98,7 @@ namespace {
         ValueAsync<Response> exec(Request request) override {
             int32_t id{};
             auto receive = get_receive_session_future(id);
-            auto memory = std::pmr::get_default_resource();
+            auto memory = kls::pmr::default_resource();
             co_await send_message(id, pack(std::move(request), id, memory));
             co_return unpack_response(co_await receive, memory);
         }
@@ -249,7 +249,7 @@ namespace {
 
         ValueAsync<> handle_request_async(int32_t id, Message msg) {
             co_await Redispatch{};
-            auto memory = std::pmr::get_default_resource();
+            auto memory = kls::pmr::default_resource();
             try {
                 auto response = pack(co_await m_trivial(unpack_request(std::move(msg), memory), m_data), id, memory);
                 co_await locked_send_message(*m_endpoint, std::move(response), m_mutex);

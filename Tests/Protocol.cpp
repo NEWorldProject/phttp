@@ -50,7 +50,7 @@ static ValueAsync<void> ServerOnceEcho() {
 static ValueAsync<void> ClientOnce() {
     auto client = ClientEndpoint::create(co_await connect_tcp({Address::CreateIPv4("127.0.0.1").value(), 33080}));
     auto result = co_await uses(client, [](ClientEndpoint &ep) -> ValueAsync<bool> {
-        auto memory = std::pmr::get_default_resource();
+        auto memory = kls::pmr::default_resource();
         auto raw = ResponseLine(20000, "OK");
         auto request = Request {
                 .line = RequestLine("ECHO", "/"),

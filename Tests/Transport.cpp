@@ -42,7 +42,7 @@ static ValueAsync<> ServerOnceEcho() {
 static ValueAsync<> ClientOnce() {
     auto file = co_await connect_tcp({Address::CreateIPv4("127.0.0.1").value(), 33080});
     auto result = co_await uses(file, [](Endpoint &ep) -> ValueAsync<bool> {
-        auto memory = std::pmr::get_default_resource();
+        auto memory = kls::pmr::default_resource();
         auto raw = ResponseLine(20000, "OK");
         co_await ep.put(raw.pack(0, memory));
         auto trip = ResponseLine::unpack(co_await ep.get(), memory);
