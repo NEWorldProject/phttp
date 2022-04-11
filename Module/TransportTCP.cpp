@@ -34,7 +34,7 @@ using namespace kls::coroutine;
 namespace {
     class EndpointImpl : public Endpoint {
     public:
-        EndpointImpl(std::unique_ptr<SocketTCP> s, Peer p) noexcept: m_peer(std::move(p)), m_socket(std::move(s)) {}
+        EndpointImpl(kls::SafeHandle<SocketTCP> s, Peer p) noexcept: m_peer(std::move(p)), m_socket(std::move(s)) {}
 
         [[nodiscard]] Peer peer() const noexcept override { return m_peer; }
 
@@ -56,7 +56,7 @@ namespace {
         ValueAsync<> close() override { co_await m_socket->close(); }
     private:
         Peer m_peer;
-        std::unique_ptr<SocketTCP> m_socket;
+        kls::SafeHandle<SocketTCP> m_socket;
     };
 
     class ServerImpl : public Host {
