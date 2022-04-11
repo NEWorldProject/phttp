@@ -104,10 +104,7 @@ namespace {
         }
 
         ValueAsync<> close() override {
-            co_await uses(*m_endpoint, [this](Endpoint &ep) -> ValueAsync<> {
-                co_await post_shutdown_user(ep, m_mutex);
-                co_await std::move(m_receive);
-            });
+            co_await uses(*m_endpoint, [this](Endpoint &) { return close_impl(); });
         }
     private:
         Mutex m_mutex{};
@@ -182,6 +179,11 @@ namespace {
                 m_promises.erase(id);
                 throw;
             }
+        }
+
+        ValueAsync<> close_impl() {
+            co_await post_shutdown_user(*m_endpoint, m_mutex);
+            co_await std::move(m_receive);
         }
     };
 
